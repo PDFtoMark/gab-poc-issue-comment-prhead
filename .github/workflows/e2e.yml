@@ -1,0 +1,38 @@
+# Minimal replica of lurk-lab/solidity-verifier .github/workflows/end2end.yml
+name: E2E POC
+on:
+  issue_comment:
+    types: [created]
+env:
+  ANVIL_PRIVATE_KEY: ${{ secrets.ANVIL_PRIVATE_KEY }}
+  ANVIL_URL: ${{ secrets.ANVIL_RPC_URL }}
+jobs:
+  integration-tests-e2e:
+    name: E2E verification
+    runs-on: ubuntu-latest
+    if:
+      github.event.issue.pull_request
+      && github.event.issue.state == 'open'
+      && contains(github.event.comment.body, '!test')
+      && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
+    steps:
+      - uses: xt0rted/pull-request-comment-branch@v2
+        id: comment-branch
+      - name: Exit if base branch is main
+        if: ${{ steps.comment-branch.outputs.base_ref == 'main' }}
+        run: |
+          echo "Cannot run on main"
+          exit 1
+      - uses: actions/checkout@v4
+      - name: Checkout PR branch
+        run: gh pr checkout $PR_NUMBER
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+      - name: Load env defaults
+        uses: cardinalby/export-env-action@v2
+        with:
+          envFile: 'rust-reference-info.env'
+      - name: Generate proof and public parameters from commit hash
+        run: |
+          python generate_contract_input.py ${{ env.NOVA_URL }} ${{ env.NOVA_COMMIT }} ${{ env.NOVA_TEST_NAME }}
